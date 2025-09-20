@@ -1,0 +1,31 @@
+package main
+
+import (
+ "fmt"
+ "sync"
+ )
+
+var total int
+var locker sync.Mutex
+func addView() {
+ locker.Lock()
+ total = total + 1
+ locker.Unlock()
+}
+
+func main() {
+ const viewers = 100
+ var wg sync.WaitGroup
+
+ for i := 0; i < viewers; i++ {
+  wg.Add(1)
+  go func(id int) {
+   defer wg.Done()
+   addView()
+  }(i)
+ }
+
+ wg.Wait()
+
+ fmt.Printf("Страницу просмотрели %d раз\n",total)
+}
