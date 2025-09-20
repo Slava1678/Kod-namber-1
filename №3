@@ -1,0 +1,42 @@
+package main
+
+import (
+ "fmt"
+ "sync"
+)
+
+
+type TaskQueue struct {
+ tasks []string
+ mu    sync.Mutex
+}
+
+
+
+func (q *TaskQueue) Push(task string) {
+ q.mu.Lock()
+ defer q.mu.Unlock()
+ q.tasks = append(q.tasks, task)
+}
+func (q *TaskQueue) Pop() string {
+ q.mu.Lock()
+ defer q.mu.Unlock()
+
+ if len(q.tasks) == 0 {
+  return ""
+ }
+
+ task := q.tasks[0]
+ q.tasks = q.tasks[1:]
+ return task
+}
+func main() {
+ q := &TaskQueue{}
+
+ q.Push("Задачу 1")
+
+ q.Push("Задачу 2")
+ fmt.Println("Выполнил:", q.Pop())
+ fmt.Println("Выполнил:", q.Pop())
+ fmt.Println("Очередь пуста?", q.Pop() == "")
+}
