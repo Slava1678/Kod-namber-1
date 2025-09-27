@@ -1,0 +1,60 @@
+package main
+
+import (
+    "fmt"
+    "sync"
+)
+
+type Product struct {
+    Name string
+    Stock int
+}
+
+var products = map[string]*Product{
+    "Яблоко": {Name: "Яблоко", Stock: 10},
+    "Банан": {Name: "Банан", Stock: 15},
+}
+
+var mu sync.Mutex
+
+func receiveShipment(name string, amount int) {
+    mu.Lock()
+    defer mu.Unlock()
+    product := products[name]
+    if product != nil {
+        product.Stock += amount
+        fmt.Printf("Полученно %d Единицы измерения %s\n", amount, name)
+    }
+}
+
+func sellProducts(name string, amount int) bool {
+    mu.Lock()
+    defer mu.Unlock()
+    product := products[name]
+    if product != nil && product.Stock >= amount {
+        product.Stock -= amount
+        fmt.Printf("Продано %d Единицы измерения %s\n", amount, name)
+        return true
+    }
+    return false
+}
+
+func main() {
+    var wg sync.WaitGroup
+
+    wg.Add(2)
+    go func() {
+        receiveShipment("Яблоко", 5)
+        wg.Done()
+    }()
+
+    go func() {
+        success := sellProducts("Яблоко", 8)
+        if !success {
+            fmt.Println("Недостаточно запасов для выполнения заказа.")
+        }
+        wg.Done()
+    }()
+
+    wg.Wait()
+}
