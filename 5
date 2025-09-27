@@ -1,0 +1,88 @@
+package main
+
+import (
+ "fmt"
+ "sync"
+ "time"
+)
+
+type Entry struct {
+ val interface{}
+ exp time.Time
+}
+
+type Cache struct {
+ data    map[string]Entry
+ mu      sync.Mutex
+ ttl     time.Duration
+ sliding bool
+}
+
+func NewCache(ttl time.Duration, sliding bool) *Cache {
+ c := &Cache{
+  data:    make(map[string]Entry),
+  ttl:     ttl,
+  sliding: sliding,
+ }
+ go c.cleanup()
+ return c
+}
+
+func (c *Cache) Set(k string, v interface{}) {
+ c.mu.Lock()
+ defer c.mu.Unlock()
+ c.data[k] = Entry{v, time.Now().Add(c.ttl)}
+}
+
+func (c *Cache) Get(k string) (interface{}, bool) {
+ c.mu.Lock()
+ defer c.mu.Unlock()
+
+ e, ok := c.data[k]
+ if !ok || time.Now().After(e.exp) {
+  delete(c.data, k)
+  return nil, false
+ }
+
+ if c.sliding {
+  e.exp = time.Now().Add(c.ttl)
+  c.data[k] = e
+ }
+ return e.val, true
+}
+
+func (c *Cache) cleanup() {
+ ticker := time.NewTicker(time.Second)
+ for range ticker.C {
+  c.mu.Lock()
+  now := time.Now()
+  for k, e := range c.data {
+   if now.After(e.exp) {
+    delete(c.data, k)
+   }
+  }
+  c.mu.Unlock()
+ }
+}
+
+func main() {
+ normal := NewCache(2*time.Second, false)
+ sliding := NewCache(2*time.Second, true)
+
+ normal.Set("x", "обычный")
+ sliding.Set("x", "sliding")
+
+
+ v1, _ := normal.Get("x")
+ v2, _ := sliding.Get("x")
+ fmt.Println(v1)
+ fmt.Println(v2)
+
+ time.Sleep(3 * time.Second)
+
+ fmt.Println("\nПосле 3 сек:")
+ v3, _ := normal.Get("x")
+ v4, _ := sliding.Get("x")
+ fmt.Println("Обычный:", v3)   
+ fmt.Println("Sliding:", v4)   
+}
