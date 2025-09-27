@@ -1,0 +1,66 @@
+package main
+
+import (
+    "fmt"
+    "sync"
+)
+
+type ErrorCollector struct {
+    errors []error
+    mu     sync.Mutex
+}
+
+func NewErrorCollector() *ErrorCollector {
+    return &ErrorCollector{errors: make([]error, 0)}
+}
+
+func (ec *ErrorCollector) AddError(err error) {
+    ec.mu.Lock()
+    defer ec.mu.Unlock()
+    ec.errors = append(ec.errors, err)
+}
+
+func (ec *ErrorCollector) GetErrors() []error {
+    ec.mu.Lock()
+    defer ec.mu.Unlock()
+    return ec.errors
+}
+
+func main() {
+    errorCollector := NewErrorCollector()
+
+    stage1 := func(data chan int, out chan int, done chan bool) {
+        defer close(out) // Закрываем выходной канал
+        for d := range data {
+            if d < 0 {
+                errorCollector.AddError(fmt.Errorf("этап 1: отрицательное число %d", d))
+                continue
+            }
+            out <- d * 2
+        }
+        done <- true 
+    }
+
+    dataChannel := make(chan int)
+    stage1Output := make(chan int)
+    stage1Done := make(chan bool)
+
+    go stage1(dataChannel, stage1Output, stage1Done)
+
+    data := []int{1, 2, -3, 4, -5, 6}
+    go func() {
+        defer close(dataChannel) 
+        for _, item := range data {
+            dataChannel <- item
+        }
+    }()
+    
+    <-stage1Done 
+
+    errors := errorCollector.GetErrors()
+    if len(errors) > 0 {
+        fmt.Println("Ошибки:", errors)
+    } else {
+        fmt.Println("Ошибок нет.")
+    }
+}
