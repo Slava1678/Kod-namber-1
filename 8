@@ -1,0 +1,51 @@
+package main
+
+import (
+    "fmt"
+    "sync"
+)
+
+type Task struct {
+    ID      int
+    Payload string
+}
+
+func worker(tasks <-chan Task, results chan<- string, wg *sync.WaitGroup) {
+    defer wg.Done()
+    for task := range tasks {
+        results <- fmt.Sprintf("Задача %d Обработка: %s", task.ID, task.Payload)
+    }
+}
+
+func producer(tasks chan<- Task, numTasks int) {
+    for i := 0; i < numTasks; i++ {
+        tasks <- Task{ID: i, Payload: fmt.Sprintf("Нагрузка-%d", i)}
+    }
+    close(tasks)
+}
+
+func main() {
+    const workersNum = 3
+    const producersNum = 2
+    const totalTasks = 10
+
+    var wg sync.WaitGroup
+    tasksCh := make(chan Task, totalTasks)
+    resultsCh := make(chan string, totalTasks)
+
+    wg.Add(workersNum)
+    for i := 0; i < workersNum; i++ {
+        go worker(tasksCh, resultsCh, &wg)
+    }
+
+    for i := 0; i < producersNum; i++ {
+        go producer(tasksCh, totalTasks/producersNum)
+    }
+
+    wg.Wait()
+    close(resultsCh)
+
+    for result := range resultsCh {
+        fmt.Println(result)
+    }
+}
